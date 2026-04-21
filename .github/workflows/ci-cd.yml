@@ -5,10 +5,11 @@ on:
     branches: [main]
 
 env:
-  AWS_REGION: ${{ secrets.APP_AWS_REGION }}
-  AWS_ACCESS_KEY_ID: ${{ secrets.APP_AWS_ACCESS_KEY_ID }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.APP_AWS_SECRET_ACCESS_KEY }}
-  AWS_SESSION_TOKEN: ${{ secrets.APP_AWS_SESSION_TOKEN }}
+  AWS_REGION: us-east-1
+  AWS_ACCESS_KEY_ID: ASIASDZJGNKXRGYCVB6H
+  AWS_SECRET_ACCESS_KEY: KMtJiKxY6onECohxP6DbJMSq8Ulov+rYaZACNoGF
+  AWS_SESSION_TOKEN: IQoJb3JpZ2luX2VjEGUaCXVzLXdlc3QtMiJGMEQCIAwPG/RS7kK1W7jBURKBxTWsk0cS/uCpLa7/xWXa8Xk9AiBrtqg/ljdx6Hwl+aIfscby3LyYJPVfy/vIXxyvzxOO7yq0AgguEAAaDDE0NTU3ODQyMDkxMSIMQk/+FajO5nnU8B4ZKpECpvZKZS0S1KyTkkW7EsZ0rwKjQRKPXCQ/mJ9PGeCzQTdnWxoBpntTjrvGbYBk146oo1mHSHds5AgZiWJiqTmwkJDdKVb19luAWo30rC0eGEe8iEbAF3SWztO9LOTzepTaG03zOtOpHJ3EmKUegErjjT0wsoUTWU/Hjg+T4gm/sFqLt0/BUcghr/NKRc521ip0dAFBaASriZgU5e18RtwH8FDjELqIEnwyE5JQhEpeFRjq0ywebTQojSAaQ/4CgYJdBSzeK7X6L9Qy8Ijrf1CeOIxCz6v6qVp3Vuu+UNDDx270IbJyBegOQhrf02OhUwhhv4slmXJOos8CnVEUxfAibw1eIskqhKhkRLOqNHCrPMTTMIb/m88GOp4Bi/ezwlqzFOhSVe3wp6V5e9ptmdwFsX8nE/SpZZStTish9xJwwB6ITl81lO3hDUQrDUPgIzgA7eT2R0Xah607WT/U980tFirdF2e6rtMb+oK8dof1//V2vNLTK02fDGYu78Ne8XkWnvQzT7CaFHtdfgJEFA7HPOeOYLLnVVZZekaha8cmoTFs98sAQiSvvXvRROFY585Fk8wl9mf+iGk=
+  ECR_REGISTRY: 145578420911.dkr.ecr.us-east-1.amazonaws.com
   ECR_REPOSITORY: receptor-boletines-739678
 
 jobs:
@@ -49,12 +50,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configurar credenciales AWS
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id: ${{ secrets.APP_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.APP_AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.APP_AWS_SESSION_TOKEN }}
-          aws-region: us-east-1
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ env.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login a Amazon ECR
         id: login-ecr
@@ -63,7 +64,6 @@ jobs:
       - name: Build, tag y push de imagen Docker
         id: push
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
@@ -85,28 +85,27 @@ jobs:
       - name: Desplegar en EC2 vía SSH
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
+          host: 3.82.42.34
+          username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            aws ecr get-login-password --region ${{ secrets.APP_AWS_REGION }} \
+            aws ecr get-login-password --region us-east-1 \
               | docker login --username AWS --password-stdin \
-                ${{ secrets.ECR_REGISTRY }}
+                145578420911.dkr.ecr.us-east-1.amazonaws.com
 
             docker pull ${{ needs.docker.outputs.image }}
 
             docker stop receptor-boletines || true
             docker rm   receptor-boletines || true
 
-            # Worker: no expone puerto HTTP, solo necesita acceso a AWS
             docker run -d \
               --name receptor-boletines \
               --restart unless-stopped \
-              -e AWS_REGION=${{ secrets.APP_AWS_REGION }} \
-              -e AWS_ACCESS_KEY_ID=${{ secrets.APP_AWS_ACCESS_KEY_ID }} \
-              -e AWS_SECRET_ACCESS_KEY=${{ secrets.APP_AWS_SECRET_ACCESS_KEY }} \
-              -e AWS_SESSION_TOKEN=${{ secrets.APP_AWS_SESSION_TOKEN }} \
-              -e SNS_EMAIL=${{ secrets.SNS_EMAIL }} \
+              -e AWS_REGION=us-east-1 \
+              -e AWS_ACCESS_KEY_ID=ASIASDZJGNKXRGYCVB6H \
+              -e AWS_SECRET_ACCESS_KEY=KMtJiKxY6onECohxP6DbJMSq8Ulov+rYaZACNoGF \
+              -e AWS_SESSION_TOKEN=IQoJb3JpZ2luX2VjEGUaCXVzLXdlc3QtMiJGMEQCIAwPG/RS7kK1W7jBURKBxTWsk0cS/uCpLa7/xWXa8Xk9AiBrtqg/ljdx6Hwl+aIfscby3LyYJPVfy/vIXxyvzxOO7yq0AgguEAAaDDE0NTU3ODQyMDkxMSIMQk/+FajO5nnU8B4ZKpECpvZKZS0S1KyTkkW7EsZ0rwKjQRKPXCQ/mJ9PGeCzQTdnWxoBpntTjrvGbYBk146oo1mHSHds5AgZiWJiqTmwkJDdKVb19luAWo30rC0eGEe8iEbAF3SWztO9LOTzepTaG03zOtOpHJ3EmKUegErjjT0wsoUTWU/Hjg+T4gm/sFqLt0/BUcghr/NKRc521ip0dAFBaASriZgU5e18RtwH8FDjELqIEnwyE5JQhEpeFRjq0ywebTQojSAaQ/4CgYJdBSzeK7X6L9Qy8Ijrf1CeOIxCz6v6qVp3Vuu+UNDDx270IbJyBegOQhrf02OhUwhhv4slmXJOos8CnVEUxfAibw1eIskqhKhkRLOqNHCrPMTTMIb/m88GOp4Bi/ezwlqzFOhSVe3wp6V5e9ptmdwFsX8nE/SpZZStTish9xJwwB6ITl81lO3hDUQrDUPgIzgA7eT2R0Xah607WT/U980tFirdF2e6rtMb+oK8dof1//V2vNLTK02fDGYu78Ne8XkWnvQzT7CaFHtdfgJEFA7HPOeOYLLnVVZZekaha8cmoTFs98sAQiSvvXvRROFY585Fk8wl9mf+iGk= \
+              -e SNS_EMAIL=andres.gomeztagle@iteso.mx \
               ${{ needs.docker.outputs.image }}
 
             sleep 5
