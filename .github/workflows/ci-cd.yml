@@ -1,0 +1,108 @@
+name: CI/CD - receptor-boletines-expediente
+
+on:
+  push:
+    branches: [main]
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REPOSITORY: receptor-boletines-739678
+
+jobs:
+  # ─────────────────────────────────────────
+  # ACTIVIDAD 2: BUILD
+  # ─────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Verificar sintaxis del entry point
+        run: node --check index.js
+
+  # ─────────────────────────────────────────
+  # ACTIVIDAD 3: DOCKER → ECR
+  # ─────────────────────────────────────────
+  docker:
+    name: Docker → ECR
+    runs-on: ubuntu-latest
+    needs: build
+    outputs:
+      image: ${{ steps.push.outputs.image }}
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login a Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag y push de imagen Docker
+        id: push
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker build -t "$IMAGE" .
+          docker tag "$IMAGE" "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
+          docker push "$IMAGE"
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
+          echo "image=$IMAGE" >> $GITHUB_OUTPUT
+
+  # ─────────────────────────────────────────
+  # ACTIVIDAD 4: DEPLOY → EC2
+  # ─────────────────────────────────────────
+  deploy:
+    name: Deploy → EC2
+    runs-on: ubuntu-latest
+    needs: docker
+
+    steps:
+      - name: Desplegar en EC2 vía SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
+              | docker login --username AWS --password-stdin \
+                ${{ secrets.ECR_REGISTRY }}
+
+            docker pull ${{ needs.docker.outputs.image }}
+
+            docker stop receptor-boletines || true
+            docker rm   receptor-boletines || true
+
+            # Worker: no expone puerto HTTP, solo necesita acceso a AWS
+            docker run -d \
+              --name receptor-boletines \
+              --restart unless-stopped \
+              -e AWS_REGION=${{ secrets.AWS_REGION }} \
+              -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
+              -e AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
+              -e SNS_EMAIL=${{ secrets.SNS_EMAIL }} \
+              ${{ needs.docker.outputs.image }}
+
+            sleep 5
+            docker ps | grep receptor-boletines
