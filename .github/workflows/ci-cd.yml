@@ -93,7 +93,7 @@ jobs:
               | docker login --username AWS --password-stdin \
                 145578420911.dkr.ecr.us-east-1.amazonaws.com
 
-            docker pull ${{ needs.docker.outputs.image }}
+            docker pull 145578420911.dkr.ecr.us-east-1.amazonaws.com/receptor-boletines-739678:latest
 
             docker stop receptor-boletines || true
             docker rm   receptor-boletines || true
@@ -106,7 +106,7 @@ jobs:
               -e AWS_SECRET_ACCESS_KEY=KMtJiKxY6onECohxP6DbJMSq8Ulov+rYaZACNoGF \
               -e AWS_SESSION_TOKEN=IQoJb3JpZ2luX2VjEGUaCXVzLXdlc3QtMiJGMEQCIAwPG/RS7kK1W7jBURKBxTWsk0cS/uCpLa7/xWXa8Xk9AiBrtqg/ljdx6Hwl+aIfscby3LyYJPVfy/vIXxyvzxOO7yq0AgguEAAaDDE0NTU3ODQyMDkxMSIMQk/+FajO5nnU8B4ZKpECpvZKZS0S1KyTkkW7EsZ0rwKjQRKPXCQ/mJ9PGeCzQTdnWxoBpntTjrvGbYBk146oo1mHSHds5AgZiWJiqTmwkJDdKVb19luAWo30rC0eGEe8iEbAF3SWztO9LOTzepTaG03zOtOpHJ3EmKUegErjjT0wsoUTWU/Hjg+T4gm/sFqLt0/BUcghr/NKRc521ip0dAFBaASriZgU5e18RtwH8FDjELqIEnwyE5JQhEpeFRjq0ywebTQojSAaQ/4CgYJdBSzeK7X6L9Qy8Ijrf1CeOIxCz6v6qVp3Vuu+UNDDx270IbJyBegOQhrf02OhUwhhv4slmXJOos8CnVEUxfAibw1eIskqhKhkRLOqNHCrPMTTMIb/m88GOp4Bi/ezwlqzFOhSVe3wp6V5e9ptmdwFsX8nE/SpZZStTish9xJwwB6ITl81lO3hDUQrDUPgIzgA7eT2R0Xah607WT/U980tFirdF2e6rtMb+oK8dof1//V2vNLTK02fDGYu78Ne8XkWnvQzT7CaFHtdfgJEFA7HPOeOYLLnVVZZekaha8cmoTFs98sAQiSvvXvRROFY585Fk8wl9mf+iGk= \
               -e SNS_EMAIL=andres.gomeztagle@iteso.mx \
-              ${{ needs.docker.outputs.image }}
+              145578420911.dkr.ecr.us-east-1.amazonaws.com/receptor-boletines-739678:latest
 
             sleep 5
             docker ps | grep receptor-boletines
